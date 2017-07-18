@@ -1,2 +1,2 @@
 # pred
-SQL dynamic predicate helper
+SQL dynamic predicate builder
