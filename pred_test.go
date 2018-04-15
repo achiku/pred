@@ -10,6 +10,14 @@ func TestEq(t *testing.T) {
 	}
 }
 
+func TestNotEq(t *testing.T) {
+	pred := NotEq("name", "moqada")
+	expected := "name != 'moqada'"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
+	}
+}
+
 func TestAnd(t *testing.T) {
 	q := Predicates{}
 	pred := q.And(Eq("name", "moqada"), Eq("status", "active"), Eq("age", 32))
@@ -19,8 +27,11 @@ func TestAnd(t *testing.T) {
 	}
 }
 
-func TestNestedAnd(t *testing.T) {
+func TestNestedConjunction(t *testing.T) {
 	q := Predicates{}
-	pred := q.And(Eq("name", "moqada"), Eq("age", 32)).And(Eq("status", "active"))
-	t.Logf("%s", pred.ToSQL())
+	pred := q.And(Eq("name", "moqada"), Eq("age", 32)).Or(Eq("status", "active"))
+	expected := "( name = 'moqada' and age = 32 ) or status = 'active'"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
+	}
 }

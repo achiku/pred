@@ -48,7 +48,7 @@ func (ps *Predicates) ToSQL() string {
 			}
 		}
 	}
-	if ps.siblings != nil {
+	if ps.siblings != nil && len(ps.siblings) == 1 {
 		s = fmt.Sprintf("( %s )", s)
 		for conj, preds := range ps.siblings {
 			for _, p := range preds {
@@ -60,6 +60,7 @@ func (ps *Predicates) ToSQL() string {
 }
 
 func conj(ps *Predicates, con Conjunction, preds ...Condition) *Predicates {
+	// changing ps state is dangerous
 	// too naive
 	if ps.conditions == nil {
 		ps.conditions = map[Conjunction][]Condition{con: []Condition{}}
@@ -100,6 +101,8 @@ func (p *Predicate) ToSQL() string {
 		s = fmt.Sprintf("'%s'", v)
 	case int, int32, int64:
 		s = fmt.Sprintf("%d", v)
+	default:
+		s = fmt.Sprintf("%s", v)
 	}
 	return fmt.Sprintf("%s %s %s", p.Subject, p.Verb, s)
 }
