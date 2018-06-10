@@ -32,14 +32,14 @@ const (
 
 // Predicates predicates
 type Predicates struct {
-	conditions map[Conjunction][]Condition
-	siblings   map[Conjunction][]Condition
+	conds    map[Conjunction][]Condition
+	siblings map[Conjunction][]Condition
 }
 
 // ToSQL predicates to SQL conditions
 func (ps *Predicates) ToSQL() string {
 	var s string
-	for conj, preds := range ps.conditions {
+	for conj, preds := range ps.conds {
 		for i, p := range preds {
 			if i == 0 {
 				s = fmt.Sprintf("%s", p.ToSQL())
@@ -62,10 +62,10 @@ func (ps *Predicates) ToSQL() string {
 func conj(ps *Predicates, con Conjunction, preds ...Condition) *Predicates {
 	// changing ps state is dangerous
 	// too naive
-	if ps.conditions == nil {
-		ps.conditions = map[Conjunction][]Condition{con: []Condition{}}
+	if ps.conds == nil {
+		ps.conds = map[Conjunction][]Condition{con: []Condition{}}
 		for _, p := range preds {
-			ps.conditions[con] = append(ps.conditions[con], p)
+			ps.conds[con] = append(ps.conds[con], p)
 		}
 	} else {
 		ps.siblings = map[Conjunction][]Condition{con: []Condition{}}
