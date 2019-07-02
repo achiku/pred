@@ -1,23 +1,37 @@
-package pred
+package main
 
 import "testing"
 
-func TestExp(t *testing.T) {
-	cases := []struct {
-		Col string
-		Ope OperatorType
-		Val interface{}
-	}{
-		{Col: "name", Ope: "=", Val: "moqada"},
+func TestEq(t *testing.T) {
+	pred := Eq("name", "moqada")
+	expected := "name = 'moqada'"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
 	}
+}
 
-	for _, c := range cases {
-		e := Eq(c.Col, c.Val).And(Eq(c.Col, c.Val)).And(Eq("test", "value"))
-		t.Logf("%s", e)
+func TestNotEq(t *testing.T) {
+	pred := NotEq("name", "moqada")
+	expected := "name != 'moqada'"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
 	}
 }
 
 func TestAnd(t *testing.T) {
-	p := And(Eq("a", 1), NotEq("b", 2)).Or(IsNull("c"))
-	t.Logf("%s", p)
+	q := Predicates{}
+	pred := q.And(Eq("name", "moqada"), Eq("status", "active"), Eq("age", 32))
+	expected := "name = 'moqada' and status = 'active' and age = 32"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
+	}
+}
+
+func TestNestedConjunction(t *testing.T) {
+	q := Predicates{}
+	pred := q.And(Eq("name", "moqada"), Eq("age", 32)).Or(Eq("status", "active"))
+	expected := "( name = 'moqada' and age = 32 ) or status = 'active'"
+	if result := pred.ToSQL(); result != expected {
+		t.Errorf("want %s got %s", expected, result)
+	}
 }

@@ -1,141 +1,126 @@
-package pred
+package main
 
 import (
-	"bytes"
-	"io"
+	"fmt"
 )
 
-// New create new builder
-func New(query string, ph string) *Builder {
-	return &Builder{
-		baseQuery:   query,
-		placeHolder: ph,
-	}
+//    q.Eq("name", "moqada")
+//    // where name = 'moqada'
+//
+//    q.And(Eq("name", "moqada"), Eq("status", "active"))
+//    // where name = 'moqada' and status = 'active'
+//
+//    q.And(Eq("name", "moqada"), NotEq("age", 10)).And(Eq("status", "active")).
+//    // where (name = 'moqada' and age = 10) and status = 'active'
+//
+//    q.Or(And(Eq("name", "moqada"), NotEq("age", 10)), Eq("name", "achiku")).
+//    And(Eq("status", "active")).
+//    // where ((name = 'moqada' and age = 10) or (name = 'achiku')) and status = 'active'
+
+// Condition SQL conditions
+type Condition interface {
+	ToSQL() string
 }
 
-// OperatorType operator type
-type OperatorType string
+// Conjunction conjunction type
+type Conjunction string
 
-// operators
 const (
-	InOperatorType       = "in"
-	NotInOperatorType    = "not in"
-	EqualOperatorType    = "="
-	NotEqualOperatorType = "!="
-	IsOperatorType       = "is"
-	IsNotOperatorType    = "is not"
-	LikeOperatorType     = "like"
-	NotLikeOperatorType  = "not like"
-	AndOperatorType      = "and"
-	OrOperatorType       = "or"
+	andConjunction = "and"
+	orConjunction  = "or"
 )
 
-// Null SQL null type
-const Null = "null"
-
-// ValType value type
-type ValType interface{}
-
-// Writer defines the interface
-type Writer interface {
-	io.Writer
-	Append(...interface{})
+// Predicates predicates
+type Predicates struct {
+	conds    map[Conjunction][]Condition
+	siblings map[Conjunction][]Condition
 }
 
-var _ Writer = NewWriter()
-
-// BytesWriter implments Writer and save SQL in bytes.Buffer
-type BytesWriter struct {
-	writer *bytes.Buffer
-	buffer []byte
-	args   []interface{}
+// ToSQL predicates to SQL conditions
+func (ps *Predicates) ToSQL() string {
+	var s string
+	for conj, preds := range ps.conds {
+		for i, p := range preds {
+			if i == 0 {
+				s = fmt.Sprintf("%s", p.ToSQL())
+			} else {
+				s = fmt.Sprintf("%s %s %s", s, conj, p.ToSQL())
+			}
+		}
+	}
+	if ps.siblings != nil && len(ps.siblings) == 1 {
+		s = fmt.Sprintf("( %s )", s)
+		for conj, preds := range ps.siblings {
+			for _, p := range preds {
+				s = fmt.Sprintf("%s %s %s", s, conj, p.ToSQL())
+			}
+		}
+	}
+	return s
 }
 
-// NewWriter creates a new string writer
-func NewWriter() *BytesWriter {
-	w := &BytesWriter{}
-	w.writer = bytes.NewBuffer(w.buffer)
-	return w
+func conj(ps *Predicates, con Conjunction, preds ...Condition) *Predicates {
+	// changing ps state is dangerous
+	// too naive
+	if ps.conds == nil {
+		ps.conds = map[Conjunction][]Condition{con: []Condition{}}
+		for _, p := range preds {
+			ps.conds[con] = append(ps.conds[con], p)
+		}
+	} else {
+		ps.siblings = map[Conjunction][]Condition{con: []Condition{}}
+		for _, p := range preds {
+			ps.siblings[con] = append(ps.siblings[con], p)
+		}
+	}
+	return ps
 }
 
-// Write writes data to Writer
-func (s *BytesWriter) Write(buf []byte) (int, error) {
-	return s.writer.Write(buf)
+// And conjunction and
+func (ps *Predicates) And(preds ...Condition) *Predicates {
+	return conj(ps, andConjunction, preds...)
 }
 
-// Append appends args to Writer
-func (s *BytesWriter) Append(args ...interface{}) {
-	s.args = append(s.args, args...)
+// Or conjunction and
+func (ps *Predicates) Or(preds ...Condition) *Predicates {
+	return conj(ps, orConjunction, preds...)
 }
 
-// Cond defines an interface of predicate
-type Cond interface {
-	And(...Cond) Cond
-	Or(...Cond) Cond
-	WriteTo(Writer) error
+// Predicate predicate
+type Predicate struct {
+	Subject string
+	Verb    string
+	Object  interface{}
 }
 
-// Pred expression
-type Pred struct {
-	Col string
-	Ope OperatorType
-	Val ValType
+// ToSQL predicate to sql
+func (p *Predicate) ToSQL() string {
+	var s string
+	switch v := p.Object.(type) {
+	case string:
+		s = fmt.Sprintf("'%s'", v)
+	case int, int32, int64:
+		s = fmt.Sprintf("%d", v)
+	default:
+		s = fmt.Sprintf("%s", v)
+	}
+	return fmt.Sprintf("%s %s %s", p.Subject, p.Verb, s)
 }
 
-// And and
-func (p *Pred) And(conds ...Cond) Cond {
-	return And(p, And(conds...))
-}
-
-// Or or
-func (p *Pred) Or(conds ...Cond) Cond {
-	return Or(p, Or(conds...))
-}
-
-// WriteTo write sql
-func (p *Pred) WriteTo(w Writer) error {
-	return nil
-}
-
-// Builder predicate builder
-type Builder struct {
-	baseQuery   string
-	placeHolder string
-	limit       int
-	offset      int
-	orderBy     string
-	havings     Cond
-	wheres      Cond
-}
-
-// Where create where clause
-func (b *Builder) Where(pred ...Cond) *Builder {
-	return b
-}
-
-// Eq equal
-func Eq(col string, val interface{}) *Pred {
-	return &Pred{
-		Col: col,
-		Ope: EqualOperatorType,
-		Val: val,
+// Eq return equeals predicates
+func Eq(subj string, obj interface{}) *Predicate {
+	return &Predicate{
+		Subject: subj,
+		Verb:    "=",
+		Object:  obj,
 	}
 }
 
-// NotEq not equal
-func NotEq(col string, val interface{}) *Pred {
-	return &Pred{
-		Col: col,
-		Ope: NotEqualOperatorType,
-		Val: val,
-	}
-}
-
-// IsNull not equal
-func IsNull(col string) *Pred {
-	return &Pred{
-		Col: col,
-		Ope: IsOperatorType,
-		Val: Null,
+// NotEq return not equeals predicates
+func NotEq(subj string, obj interface{}) *Predicate {
+	return &Predicate{
+		Subject: subj,
+		Verb:    "!=",
+		Object:  obj,
 	}
 }
